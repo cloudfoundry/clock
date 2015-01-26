@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vito/clock"
+	"github.com/pivotal-golang/clock"
 )
 
 type fakeTicker struct {

@@ -3,7 +3,7 @@ package fakeclock_test
 import (
 	"time"
 
-	"github.com/vito/clock/fakeclock"
+	"github.com/pivotal-golang/clock/fakeclock"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

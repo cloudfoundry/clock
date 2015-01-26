@@ -5,7 +5,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/vito/clock/fakeclock"
+	"github.com/pivotal-golang/clock/fakeclock"
 )
 
 var _ = Describe("FakeTimer", func() {
