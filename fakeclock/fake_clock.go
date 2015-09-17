@@ -24,6 +24,9 @@ func NewFakeClock(now time.Time) *FakeClock {
 		watchers: make(map[timeWatcher]struct{}),
 	}
 }
+func (clock *FakeClock) Since(t time.Time) time.Duration {
+	return clock.Now().Sub(t)
+}
 
 func (clock *FakeClock) Now() time.Time {
 	clock.Mutex.Lock()
