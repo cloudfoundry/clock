@@ -11,15 +11,17 @@ type fakeTimer struct {
 	mutex          sync.Mutex
 	completionTime time.Time
 	channel        chan time.Time
-
-	tickCB func(time.Time)
+	duration       time.Duration
+	repeat         bool
 }
 
-func NewFakeTimer(clock *FakeClock, d time.Duration) *fakeTimer {
+func NewFakeTimer(clock *FakeClock, d time.Duration, repeat bool) *fakeTimer {
 	return &fakeTimer{
 		clock:          clock,
 		completionTime: clock.Now().Add(d),
 		channel:        make(chan time.Time, 1),
+		duration:       d,
+		repeat:         repeat,
 	}
 }
 
@@ -53,10 +55,6 @@ func (ft *fakeTimer) Stop() bool {
 	return active
 }
 
-func (ft *fakeTimer) onTick(cb func(time.Time)) {
-	ft.tickCB = cb
-}
-
 func (ft *fakeTimer) timeUpdated(now time.Time) {
 	var fire bool
 
@@ -74,8 +72,8 @@ func (ft *fakeTimer) timeUpdated(now time.Time) {
 		default:
 		}
 
-		if ft.tickCB != nil {
-			ft.tickCB(now)
+		if ft.repeat {
+			ft.Reset(ft.duration)
 		}
 	}
 }
