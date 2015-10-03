@@ -17,17 +17,18 @@ type fakeTicker struct {
 	timer clock.Timer
 }
 
-func NewFakeTicker(clock clock.Clock, d time.Duration) clock.Ticker {
-	channel := make(chan time.Time)
+func NewFakeTicker(clock *FakeClock, d time.Duration) clock.Ticker {
+	// buffer is so that .Increment does not block forever
+	channel := make(chan time.Time, 1)
+
 	timer := clock.NewTimer(d)
 
-	go func() {
-		for {
-			time := <-timer.C()
-			timer.Reset(d)
-			channel <- time
-		}
-	}()
+	// note: this happens *synchronously* with .Increment, guaranteeing that each
+	// time advance will fire the timer
+	timer.(*fakeTimer).onTick(func(time time.Time) {
+		timer.Reset(d)
+		channel <- time
+	})
 
 	return &fakeTicker{
 		clock:    clock,
