@@ -15,7 +15,7 @@ type fakeTimer struct {
 	repeat         bool
 }
 
-func NewFakeTimer(clock *FakeClock, d time.Duration, repeat bool) *fakeTimer {
+func newFakeTimer(clock *FakeClock, d time.Duration, repeat bool) *fakeTimer {
 	return &fakeTimer{
 		clock:          clock,
 		completionTime: clock.Now().Add(d),

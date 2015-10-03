@@ -56,7 +56,7 @@ func (clock *FakeClock) IncrementBySeconds(seconds uint64) {
 }
 
 func (clock *FakeClock) NewTimer(d time.Duration) clock.Timer {
-	timer := NewFakeTimer(clock, d, false)
+	timer := newFakeTimer(clock, d, false)
 	clock.addTimeWatcher(timer)
 
 	return timer
@@ -67,10 +67,10 @@ func (clock *FakeClock) Sleep(d time.Duration) {
 }
 
 func (clock *FakeClock) NewTicker(d time.Duration) clock.Ticker {
-	timer := NewFakeTimer(clock, d, true)
+	timer := newFakeTimer(clock, d, true)
 	clock.addTimeWatcher(timer)
 
-	return NewFakeTicker(timer)
+	return newFakeTicker(timer)
 }
 
 func (clock *FakeClock) WatcherCount() int {

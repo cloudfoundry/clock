@@ -10,7 +10,7 @@ type fakeTicker struct {
 	timer clock.Timer
 }
 
-func NewFakeTicker(timer *fakeTimer) clock.Ticker {
+func newFakeTicker(timer *fakeTimer) *fakeTicker {
 	return &fakeTicker{
 		timer: timer,
 	}
