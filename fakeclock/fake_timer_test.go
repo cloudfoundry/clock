@@ -38,4 +38,33 @@ var _ = Describe("FakeTimer", func() {
 		fakeClock.Increment(10 * time.Second)
 		Consistently(timeChan, Δ).ShouldNot(Receive())
 	})
+
+	Describe("WaitForWatcherAndIncrement", func() {
+		It("consistently fires timers that start asynchronously", func() {
+			received := make(chan time.Time)
+
+			stop := make(chan struct{})
+			defer close(stop)
+
+			duration := 10 * time.Second
+
+			go func() {
+				for {
+					timer := fakeClock.NewTimer(duration)
+
+					select {
+					case ticked := <-timer.C():
+						received <- ticked
+					case <-stop:
+						return
+					}
+				}
+			}()
+
+			for i := 0; i < 100; i++ {
+				fakeClock.WaitForWatcherAndIncrement(duration)
+				Expect((<-received).Sub(initialTime)).To(Equal(duration * time.Duration(i+1)))
+			}
+		})
+	})
 })
