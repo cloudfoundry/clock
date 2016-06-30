@@ -3,9 +3,9 @@ package fakeclock_test
 import (
 	"time"
 
+	"code.cloudfoundry.org/clock/fakeclock"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/pivotal-golang/clock/fakeclock"
 )
 
 var _ = Describe("FakeClock", func() {

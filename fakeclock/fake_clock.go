@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pivotal-golang/clock"
+	"code.cloudfoundry.org/clock"
 )
 
 type timeWatcher interface {
