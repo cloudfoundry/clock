@@ -38,7 +38,7 @@ func (clock *FakeClock) Now() time.Time {
 }
 
 func (clock *FakeClock) Increment(duration time.Duration) {
-	clock.increment(duration, false)
+	clock.increment(duration, false, 0)
 }
 
 func (clock *FakeClock) IncrementBySeconds(seconds uint64) {
@@ -46,7 +46,11 @@ func (clock *FakeClock) IncrementBySeconds(seconds uint64) {
 }
 
 func (clock *FakeClock) WaitForWatcherAndIncrement(duration time.Duration) {
-	clock.increment(duration, true)
+	clock.WaitForNWatchersAndIncrement(duration, 1)
+}
+
+func (clock *FakeClock) WaitForNWatchersAndIncrement(duration time.Duration, numWatchers int) {
+	clock.increment(duration, true, numWatchers)
 }
 
 func (clock *FakeClock) NewTimer(d time.Duration) clock.Timer {
@@ -74,10 +78,10 @@ func (clock *FakeClock) WatcherCount() int {
 	return len(clock.watchers)
 }
 
-func (clock *FakeClock) increment(duration time.Duration, waitForWatchers bool) {
+func (clock *FakeClock) increment(duration time.Duration, waitForWatchers bool, numWatchers int) {
 	clock.cond.L.Lock()
 
-	for waitForWatchers && len(clock.watchers) == 0 {
+	for waitForWatchers && len(clock.watchers) < numWatchers {
 		clock.cond.Wait()
 	}
 
