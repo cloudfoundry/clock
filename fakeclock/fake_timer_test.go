@@ -66,5 +66,43 @@ var _ = Describe("FakeTimer", func() {
 				Expect((<-received).Sub(initialTime)).To(Equal(duration * time.Duration(i+1)))
 			}
 		})
+
+		It("consistently fires timers that reset asynchronously", func() {
+			received := make(chan time.Time, 1)
+
+			stop := make(chan struct{})
+			defer close(stop)
+
+			duration := 10 * time.Second
+
+			timer := fakeClock.NewTimer(duration)
+
+			go func() {
+				for {
+					select {
+					case ticked := <-timer.C():
+						received <- ticked
+						timer.Reset(duration)
+					case <-stop:
+						return
+					}
+				}
+			}()
+
+			incrementClock := make(chan struct{})
+
+			go func() {
+				for {
+					<-incrementClock
+					fakeClock.WaitForWatcherAndIncrement(duration)
+				}
+			}()
+
+			for i := 0; i < 100; i++ {
+				Eventually(incrementClock).Should(BeSent(struct{}{}))
+				var timestamp time.Time
+				Eventually(received, 5*time.Second).Should(Receive(&timestamp))
+			}
+		})
 	})
 })

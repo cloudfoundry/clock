@@ -14,14 +14,14 @@ type timeWatcher interface {
 type FakeClock struct {
 	now time.Time
 
-	watchers map[timeWatcher]struct{}
+	watchers map[timeWatcher]int
 	cond     *sync.Cond
 }
 
 func NewFakeClock(now time.Time) *FakeClock {
 	return &FakeClock{
 		now:      now,
-		watchers: make(map[timeWatcher]struct{}),
+		watchers: make(map[timeWatcher]int),
 		cond:     &sync.Cond{L: &sync.Mutex{}},
 	}
 }
@@ -102,7 +102,7 @@ func (clock *FakeClock) increment(duration time.Duration, waitForWatchers bool, 
 
 func (clock *FakeClock) addTimeWatcher(tw timeWatcher) {
 	clock.cond.L.Lock()
-	clock.watchers[tw] = struct{}{}
+	clock.watchers[tw]++
 	clock.cond.L.Unlock()
 
 	tw.timeUpdated(clock.Now())
@@ -112,6 +112,12 @@ func (clock *FakeClock) addTimeWatcher(tw timeWatcher) {
 
 func (clock *FakeClock) removeTimeWatcher(tw timeWatcher) {
 	clock.cond.L.Lock()
-	delete(clock.watchers, tw)
+	count := clock.watchers[tw]
+	count--
+	if count == 0 {
+		delete(clock.watchers, tw)
+	} else {
+		clock.watchers[tw] = count
+	}
 	clock.cond.L.Unlock()
 }
