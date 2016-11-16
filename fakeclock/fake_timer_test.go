@@ -39,6 +39,16 @@ var _ = Describe("FakeTimer", func() {
 		Consistently(timeChan, Δ).ShouldNot(Receive())
 	})
 
+	Describe("Stop", func() {
+		It("is idempotent", func() {
+			timer := fakeClock.NewTimer(time.Second)
+			timer.Stop()
+			timer.Stop()
+			fakeClock.Increment(time.Second)
+			Consistently(timer.C()).ShouldNot(Receive())
+		})
+	})
+
 	Describe("WaitForWatcherAndIncrement", func() {
 		It("consistently fires timers that start asynchronously", func() {
 			received := make(chan time.Time)

@@ -114,7 +114,7 @@ func (clock *FakeClock) removeTimeWatcher(tw timeWatcher) {
 	clock.cond.L.Lock()
 	count := clock.watchers[tw]
 	count--
-	if count == 0 {
+	if count <= 0 {
 		delete(clock.watchers, tw)
 	} else {
 		clock.watchers[tw] = count
