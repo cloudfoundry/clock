@@ -49,6 +49,25 @@ var _ = Describe("FakeClock", func() {
 		})
 	})
 
+	Describe("After", func() {
+		It("waits and then sends the current time on the returned channel", func() {
+			timeChan := fakeClock.After(10 * time.Second)
+			Consistently(timeChan, Δ).ShouldNot(Receive())
+
+			fakeClock.Increment(5 * time.Second)
+			Consistently(timeChan, Δ).ShouldNot(Receive())
+
+			fakeClock.Increment(4 * time.Second)
+			Consistently(timeChan, Δ).ShouldNot(Receive())
+
+			fakeClock.Increment(1 * time.Second)
+			Eventually(timeChan).Should(Receive(Equal(initialTime.Add(10 * time.Second))))
+
+			fakeClock.Increment(10 * time.Second)
+			Consistently(timeChan, Δ).ShouldNot(Receive())
+		})
+	})
+
 	Describe("WatcherCount", func() {
 		Context("when a timer is created", func() {
 			It("increments the watcher count", func() {

@@ -64,6 +64,10 @@ func (clock *FakeClock) Sleep(d time.Duration) {
 	<-clock.NewTimer(d).C()
 }
 
+func (clock *FakeClock) After(d time.Duration) <-chan time.Time {
+	return clock.NewTimer(d).C()
+}
+
 func (clock *FakeClock) NewTicker(d time.Duration) clock.Ticker {
 	timer := newFakeTimer(clock, d, true)
 	clock.addTimeWatcher(timer)
