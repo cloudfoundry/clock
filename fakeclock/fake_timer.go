@@ -13,6 +13,7 @@ type fakeTimer struct {
 	channel        chan time.Time
 	duration       time.Duration
 	repeat         bool
+	lastFireTime   time.Time
 }
 
 func newFakeTimer(clock *FakeClock, d time.Duration, repeat bool) *fakeTimer {
@@ -62,6 +63,8 @@ func (ft *fakeTimer) shouldFire(now time.Time) bool {
 		return false
 	}
 
+	ft.lastFireTime = now
+
 	return now.After(ft.completionTime) || now.Equal(ft.completionTime)
 }
 
@@ -76,5 +79,9 @@ func (ft *fakeTimer) timeUpdated(now time.Time) {
 		// drop on the floor. timers have a buffered channel anyway. according to
 		// godoc of the `time' package a ticker can loose ticks in case of a slow
 		// receiver
+	}
+
+	if ft.repeatable() {
+		ft.Reset(ft.duration)
 	}
 }

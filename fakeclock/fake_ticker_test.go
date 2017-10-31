@@ -42,4 +42,17 @@ var _ = Describe("FakeTicker", func() {
 		fakeClock.Increment(10 * time.Second)
 		Eventually(timeChan).Should(Receive(Equal(initialTime.Add(30 * time.Second))))
 	})
+
+	It("should not fire until a period has passed", func() {
+		const period = 1 * time.Second
+
+		ticker := fakeClock.NewTicker(period)
+		Consistently(ticker.C()).ShouldNot(Receive())
+
+		fakeClock.Increment(period)
+		Eventually(ticker.C()).Should(Receive(Equal(initialTime.Add(period))))
+
+		fakeClock.Increment(0)
+		Consistently(ticker.C()).ShouldNot(Receive())
+	})
 })

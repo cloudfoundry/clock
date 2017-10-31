@@ -86,7 +86,6 @@ func (clock *FakeClock) WatcherCount() int {
 
 func (clock *FakeClock) increment(duration time.Duration, waitForWatchers bool, numWatchers int) {
 	clock.cond.L.Lock()
-	defer clock.cond.L.Unlock()
 
 	for waitForWatchers && len(clock.watchers) < numWatchers {
 		clock.cond.Wait()
@@ -109,6 +108,8 @@ func (clock *FakeClock) increment(duration time.Duration, waitForWatchers bool, 
 	}
 
 	clock.watchers = newWatchers
+
+	clock.cond.L.Unlock()
 
 	for _, w := range watchers {
 		w.timeUpdated(now)
