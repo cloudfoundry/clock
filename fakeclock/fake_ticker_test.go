@@ -42,4 +42,17 @@ var _ = Describe("FakeTicker", func() {
 		fakeClock.Increment(10 * time.Second)
 		Eventually(timeChan).Should(Receive(Equal(initialTime.Add(30 * time.Second))))
 	})
+
+	It("sends the time only once, even if another ticker is created with the same clock", func() {
+		const period = 1 * time.Second
+
+		ticker := fakeClock.NewTicker(period)
+
+		fakeClock.Increment(period)
+		Eventually(ticker.C()).Should(Receive(Equal(initialTime.Add(period))))
+
+		secondTicker := fakeClock.NewTicker(period)
+		Consistently(ticker.C(), Δ).ShouldNot(Receive())
+		Consistently(secondTicker.C(), Δ).ShouldNot(Receive())
+	})
 })
