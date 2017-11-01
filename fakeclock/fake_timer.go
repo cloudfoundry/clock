@@ -13,6 +13,7 @@ type fakeTimer struct {
 	channel        chan time.Time
 	duration       time.Duration
 	repeat         bool
+	lastFireTime   time.Time
 }
 
 func newFakeTimer(clock *FakeClock, d time.Duration, repeat bool) *fakeTimer {
@@ -58,11 +59,13 @@ func (ft *fakeTimer) shouldFire(now time.Time) bool {
 	ft.mutex.Lock()
 	defer ft.mutex.Unlock()
 
-	if ft.completionTime.IsZero() {
+	if ft.completionTime.IsZero() || now.Before(ft.completionTime) || ft.repeat && ft.lastFireTime == now {
 		return false
 	}
 
-	return now.After(ft.completionTime) || now.Equal(ft.completionTime)
+	ft.lastFireTime = now
+
+	return true
 }
 
 func (ft *fakeTimer) repeatable() bool {
