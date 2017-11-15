@@ -1,11 +1,15 @@
 package fakeclock_test
 
 import (
+	"os"
 	"time"
 
+	"code.cloudfoundry.org/clock"
 	"code.cloudfoundry.org/clock/fakeclock"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/tedsuo/ifrit"
+	"github.com/tedsuo/ifrit/ginkgomon"
 )
 
 var _ = Describe("FakeTimer", func() {
@@ -50,69 +54,94 @@ var _ = Describe("FakeTimer", func() {
 	})
 
 	Describe("WaitForWatcherAndIncrement", func() {
-		It("consistently fires timers that start asynchronously", func() {
-			received := make(chan time.Time)
+		const (
+			duration = 10 * time.Second
+		)
 
-			stop := make(chan struct{})
-			defer close(stop)
+		var (
+			process  ifrit.Process
+			runner   ifrit.Runner
+			received chan time.Time
+		)
 
-			duration := 10 * time.Second
-
-			go func() {
-				for {
-					timer := fakeClock.NewTimer(duration)
-
-					select {
-					case ticked := <-timer.C():
-						received <- ticked
-					case <-stop:
-						return
-					}
-				}
-			}()
-
-			for i := 0; i < 100; i++ {
-				fakeClock.WaitForWatcherAndIncrement(duration)
-				Expect((<-received).Sub(initialTime)).To(Equal(duration * time.Duration(i+1)))
-			}
+		BeforeEach(func() {
+			received = make(chan time.Time, 100)
 		})
 
-		It("consistently fires timers that reset asynchronously", func() {
-			received := make(chan time.Time, 1)
+		AfterEach(func() {
+			ginkgomon.Interrupt(process)
+		})
 
-			stop := make(chan struct{})
-			defer close(stop)
+		JustBeforeEach(func() {
+			process = ginkgomon.Invoke(runner)
+		})
 
-			duration := 10 * time.Second
+		Context("when timers are added asynchronously", func() {
+			BeforeEach(func() {
+				runner = ifrit.RunFunc(func(signals <-chan os.Signal, ready chan<- struct{}) error {
+					close(ready)
 
-			timer := fakeClock.NewTimer(duration)
+					for {
+						timer := fakeClock.NewTimer(duration)
 
-			go func() {
-				for {
-					select {
-					case ticked := <-timer.C():
-						received <- ticked
-						timer.Reset(duration)
-					case <-stop:
-						return
+						select {
+						case ticked := <-timer.C():
+							received <- ticked
+						case <-signals:
+							return nil
+						}
 					}
-				}
-			}()
+				})
+			})
 
-			incrementClock := make(chan struct{})
-
-			go func() {
-				for {
-					<-incrementClock
+			It("consistently fires the new timers", func() {
+				for i := 0; i < 100; i++ {
 					fakeClock.WaitForWatcherAndIncrement(duration)
+					Expect((<-received).Sub(initialTime)).To(Equal(duration * time.Duration(i+1)))
 				}
-			}()
-
-			for i := 0; i < 100; i++ {
-				Eventually(incrementClock).Should(BeSent(struct{}{}))
-				var timestamp time.Time
-				Eventually(received, 5*time.Second).Should(Receive(&timestamp))
-			}
+			})
 		})
+
+		Context("when a timer is reset asynchronously", func() {
+			var (
+				timer clock.Timer
+			)
+
+			BeforeEach(func() {
+				timer = fakeClock.NewTimer(duration)
+
+				runner = ifrit.RunFunc(func(signals <-chan os.Signal, ready chan<- struct{}) error {
+					close(ready)
+
+					for {
+						select {
+						case ticked := <-timer.C():
+							received <- ticked
+							timer.Reset(duration)
+						case <-signals:
+							return nil
+						}
+					}
+				})
+			})
+
+			It("consistently fires timers that reset asynchronously", func() {
+				incrementClock := make(chan struct{})
+
+				go func() {
+					for {
+						<-incrementClock
+						fakeClock.WaitForWatcherAndIncrement(duration)
+					}
+				}()
+
+				for i := 0; i < 100; i++ {
+					Eventually(incrementClock).Should(BeSent(struct{}{}))
+					var timestamp time.Time
+					Eventually(received, 5*time.Second).Should(Receive(&timestamp))
+				}
+			})
+		})
+
 	})
 })
