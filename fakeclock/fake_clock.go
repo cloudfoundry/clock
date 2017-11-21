@@ -1,6 +1,7 @@
 package fakeclock
 
 import (
+	"errors"
 	"sync"
 	"time"
 
@@ -71,6 +72,10 @@ func (clock *FakeClock) After(d time.Duration) <-chan time.Time {
 }
 
 func (clock *FakeClock) NewTicker(d time.Duration) clock.Ticker {
+	if d <= 0 {
+		panic(errors.New("duration must be greater than zero"))
+	}
+
 	timer := newFakeTimer(clock, d, true)
 	clock.addTimeWatcher(timer)
 

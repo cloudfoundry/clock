@@ -55,4 +55,8 @@ var _ = Describe("FakeTicker", func() {
 		fakeClock.Increment(0)
 		Consistently(ticker.C()).ShouldNot(Receive())
 	})
+
+	It("panics given an invalid duration", func() {
+		Expect(func() { fakeClock.NewTicker(0) }).Should(Panic())
+	})
 })
