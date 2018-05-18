@@ -1,6 +1,7 @@
 package fakeclock_test
 
 import (
+	"sync/atomic"
 	"time"
 
 	"code.cloudfoundry.org/clock/fakeclock"
@@ -41,6 +42,39 @@ var _ = Describe("FakeTicker", func() {
 
 		fakeClock.Increment(10 * time.Second)
 		Eventually(timeChan).Should(Receive(Equal(initialTime.Add(30 * time.Second))))
+	})
+
+	It("when there are multiple tickers", func() {
+		const period = 1 * time.Second
+
+		ticker1 := fakeClock.NewTicker(period)
+		ticker2 := fakeClock.NewTicker(period)
+
+		// Eventually(ticker.C()).Should(Recieve) make it hard to detect this error
+		// due to the polling nature of Eventually. We usually end up missing the
+		// second event and it gets dropped on the floor. Use counters instead to
+		// make sure we don't miss the second erroneous event
+		count1 := uint32(0)
+		count2 := uint32(0)
+
+		go func() {
+			for {
+				select {
+				case <-ticker1.C():
+					atomic.AddUint32(&count1, 1)
+				case <-ticker2.C():
+					atomic.AddUint32(&count2, 1)
+				}
+			}
+		}()
+
+		fakeClock.Increment(period)
+
+		Eventually(func() uint32 { return atomic.LoadUint32(&count1) }).Should(BeEquivalentTo(1))
+		Eventually(func() uint32 { return atomic.LoadUint32(&count2) }).Should(BeEquivalentTo(1))
+
+		Consistently(func() uint32 { return atomic.LoadUint32(&count1) }).Should(BeEquivalentTo(1))
+		Consistently(func() uint32 { return atomic.LoadUint32(&count2) }).Should(BeEquivalentTo(1))
 	})
 
 	It("should not fire until a period has passed", func() {
