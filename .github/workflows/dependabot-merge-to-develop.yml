@@ -21,8 +21,7 @@ jobs:
             github.rest.pulls.merge({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              pull_number: context.event.issue.number,
-              merge_method: 'squash'
+              pull_number: github.event.workflow_run.event.issue.number
             })
 
 
