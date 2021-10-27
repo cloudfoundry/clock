@@ -1,0 +1,29 @@
+name: dependabot-merge-to-develop
+
+on:
+  workflow_run:
+    workflows: ["units-pr"]
+    types:
+      - completed
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    if: >
+      ${{ github.event.workflow_run.event.actor == 'dependabot[bot]' &&
+      github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Merge
+        uses: actions/github-script@v5
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            github.rest.pulls.merge({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.event.issue.number,
+              merge_method: 'squash'
+            })
+
+
+
