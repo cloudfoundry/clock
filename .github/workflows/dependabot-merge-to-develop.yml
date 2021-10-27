@@ -21,7 +21,7 @@ jobs:
             github.rest.pulls.merge({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              pull_number: github.event.workflow_run.event.issue.number
+              pull_number: ${{github.event.workflow_run.event.issue.number}}
             })
 
 
