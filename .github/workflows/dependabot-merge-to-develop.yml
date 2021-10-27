@@ -10,7 +10,7 @@ jobs:
   merge:
     runs-on: ubuntu-latest
     if: >
-      ${{ github.event.workflow_run.event.actor == 'dependabot[bot]' &&
+      ${{ github.event.workflow_run.event.actor == 'reneighbor' &&
       github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: Merge
