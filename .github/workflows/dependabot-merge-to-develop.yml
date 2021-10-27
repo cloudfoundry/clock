@@ -45,6 +45,6 @@ jobs:
             await github.rest.pulls.merge({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: issue_number,
+              pull_number: issue_number,
             })
 
