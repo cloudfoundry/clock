@@ -23,3 +23,13 @@ jobs:
 
     - name: Test
       run: go test -v ./...
+
+    - name: Save PR number
+      if: success()
+      run: |
+       mkdir -p ./pr
+       echo ${{ github.event.number }} > ./pr/NR
+    - uses: actions/upload-artifact@v2
+      with:
+       name: pr
+       path: pr/
