@@ -1,8 +1,7 @@
-name: Go
+name: units-pr
 
 on:
-  push:
-    branches: [ develop ]
+  pull_request
 
 jobs:
   test:
@@ -14,7 +13,6 @@ jobs:
       run: |
         go_version=$(cat go.mod | grep "^go" | cut -d ' ' -f 2)
         echo "go_version=${go_version}" >> $GITHUB_ENV
-
     - name: Set up Go
       uses: actions/setup-go@v2
       with:
