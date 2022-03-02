@@ -74,11 +74,11 @@ linters:
     - deadcode
     - depguard
     - dogsled
-      #- dupl
+    - dupl
     - errcheck
     - funlen
       #    - gocognit
-      #    - goconst
+    - goconst
       #    - gocyclo
     - gofmt
     - goimports
@@ -97,14 +97,14 @@ linters:
     - stylecheck
     - testpackage
     - typecheck
-      #    - unconvert
-      #    - unparam
+    - unconvert
+    - unparam
     - unused
     - varcheck
     - whitespace
       #    - godox
-      #    - staticcheck
-      #    - prealloc
+    - staticcheck
+    - prealloc
 issues:
   # Excluding configuration per-path, per-linter, per-text and per-source
   exclude-rules:

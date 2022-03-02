@@ -13,7 +13,7 @@ import (
 )
 
 var _ = Describe("FakeTimer", func() {
-	const Δ = 10 * time.Millisecond
+	const delta = 10 * time.Millisecond
 
 	var (
 		fakeClock   *fakeclock.FakeClock
@@ -28,19 +28,19 @@ var _ = Describe("FakeTimer", func() {
 	It("proivdes a channel that receives after the given interval has elapsed", func() {
 		timer := fakeClock.NewTimer(10 * time.Second)
 		timeChan := timer.C()
-		Consistently(timeChan, Δ).ShouldNot(Receive())
+		Consistently(timeChan, delta).ShouldNot(Receive())
 
 		fakeClock.Increment(5 * time.Second)
-		Consistently(timeChan, Δ).ShouldNot(Receive())
+		Consistently(timeChan, delta).ShouldNot(Receive())
 
 		fakeClock.Increment(4 * time.Second)
-		Consistently(timeChan, Δ).ShouldNot(Receive())
+		Consistently(timeChan, delta).ShouldNot(Receive())
 
 		fakeClock.Increment(1 * time.Second)
 		Eventually(timeChan).Should(Receive(Equal(initialTime.Add(10 * time.Second))))
 
 		fakeClock.Increment(10 * time.Second)
-		Consistently(timeChan, Δ).ShouldNot(Receive())
+		Consistently(timeChan, delta).ShouldNot(Receive())
 	})
 
 	Describe("Stop", func() {

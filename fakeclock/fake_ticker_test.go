@@ -11,7 +11,7 @@ import (
 )
 
 var _ = Describe("FakeTicker", func() {
-	const Δ = 10 * time.Millisecond
+	const delta = 10 * time.Millisecond
 
 	var (
 		fakeClock   *fakeclock.FakeClock
@@ -26,13 +26,13 @@ var _ = Describe("FakeTicker", func() {
 	It("provides a channel that receives the time at each interval", func() {
 		ticker := fakeClock.NewTicker(10 * time.Second)
 		timeChan := ticker.C()
-		Consistently(timeChan, Δ).ShouldNot(Receive())
+		Consistently(timeChan, delta).ShouldNot(Receive())
 
 		fakeClock.Increment(5 * time.Second)
-		Consistently(timeChan, Δ).ShouldNot(Receive())
+		Consistently(timeChan, delta).ShouldNot(Receive())
 
 		fakeClock.Increment(4 * time.Second)
-		Consistently(timeChan, Δ).ShouldNot(Receive())
+		Consistently(timeChan, delta).ShouldNot(Receive())
 
 		fakeClock.Increment(1 * time.Second)
 		Eventually(timeChan).Should(Receive(Equal(initialTime.Add(10 * time.Second))))
@@ -50,7 +50,7 @@ var _ = Describe("FakeTicker", func() {
 		ticker1 := fakeClock.NewTicker(period)
 		ticker2 := fakeClock.NewTicker(period)
 
-		// Eventually(ticker.C()).Should(Recieve) make it hard to detect this error
+		// Eventually(ticker.C()).Should(Receive) make it hard to detect this error
 		// due to the polling nature of Eventually. We usually end up missing the
 		// second event and it gets dropped on the floor. Use counters instead to
 		// make sure we don't miss the second erroneous event
