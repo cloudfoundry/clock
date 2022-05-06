@@ -6,10 +6,10 @@ import (
 
 	"code.cloudfoundry.org/clock"
 	"code.cloudfoundry.org/clock/fakeclock"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/tedsuo/ifrit"
-	"github.com/tedsuo/ifrit/ginkgomon"
+	"github.com/tedsuo/ifrit/ginkgomon_v2"
 )
 
 var _ = Describe("FakeTimer", func() {
@@ -69,11 +69,11 @@ var _ = Describe("FakeTimer", func() {
 		})
 
 		AfterEach(func() {
-			ginkgomon.Interrupt(process)
+			ginkgomon_v2.Interrupt(process)
 		})
 
 		JustBeforeEach(func() {
-			process = ginkgomon.Invoke(runner)
+			process = ginkgomon_v2.Invoke(runner)
 		})
 
 		Context("when timers are added asynchronously", func() {
