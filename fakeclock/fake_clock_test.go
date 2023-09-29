@@ -9,7 +9,7 @@ import (
 )
 
 var _ = Describe("FakeClock", func() {
-	const Δ time.Duration = 10 * time.Millisecond
+	const delta time.Duration = 10 * time.Millisecond
 
 	var (
 		fakeClock   *fakeclock.FakeClock
@@ -36,13 +36,13 @@ var _ = Describe("FakeClock", func() {
 				close(doneSleeping)
 			}()
 
-			Consistently(doneSleeping, Δ).ShouldNot(BeClosed())
+			Consistently(doneSleeping, delta).ShouldNot(BeClosed())
 
 			fakeClock.Increment(5 * time.Second)
-			Consistently(doneSleeping, Δ).ShouldNot(BeClosed())
+			Consistently(doneSleeping, delta).ShouldNot(BeClosed())
 
 			fakeClock.Increment(4 * time.Second)
-			Consistently(doneSleeping, Δ).ShouldNot(BeClosed())
+			Consistently(doneSleeping, delta).ShouldNot(BeClosed())
 
 			fakeClock.Increment(1 * time.Second)
 			Eventually(doneSleeping).Should(BeClosed())
@@ -52,19 +52,19 @@ var _ = Describe("FakeClock", func() {
 	Describe("After", func() {
 		It("waits and then sends the current time on the returned channel", func() {
 			timeChan := fakeClock.After(10 * time.Second)
-			Consistently(timeChan, Δ).ShouldNot(Receive())
+			Consistently(timeChan, delta).ShouldNot(Receive())
 
 			fakeClock.Increment(5 * time.Second)
-			Consistently(timeChan, Δ).ShouldNot(Receive())
+			Consistently(timeChan, delta).ShouldNot(Receive())
 
 			fakeClock.Increment(4 * time.Second)
-			Consistently(timeChan, Δ).ShouldNot(Receive())
+			Consistently(timeChan, delta).ShouldNot(Receive())
 
 			fakeClock.Increment(1 * time.Second)
 			Eventually(timeChan).Should(Receive(Equal(initialTime.Add(10 * time.Second))))
 
 			fakeClock.Increment(10 * time.Second)
-			Consistently(timeChan, Δ).ShouldNot(Receive())
+			Consistently(timeChan, delta).ShouldNot(Receive())
 		})
 	})
 
