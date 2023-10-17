@@ -3,7 +3,7 @@ module code.cloudfoundry.org/clock
 go 1.20
 
 require (
-	github.com/onsi/ginkgo/v2 v2.12.0
+	github.com/onsi/ginkgo/v2 v2.13.0
 	github.com/onsi/gomega v1.28.0
 	github.com/tedsuo/ifrit v0.0.0-20230330192023-5cba443a66c4
 )
@@ -15,7 +15,7 @@ require (
 	github.com/google/pprof v0.0.0-20210407192527-94a9f03dee38 // indirect
 	github.com/onsi/ginkgo v1.16.5 // indirect
 	golang.org/x/net v0.14.0 // indirect
-	golang.org/x/sys v0.11.0 // indirect
+	golang.org/x/sys v0.12.0 // indirect
 	golang.org/x/text v0.12.0 // indirect
 	golang.org/x/tools v0.12.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
