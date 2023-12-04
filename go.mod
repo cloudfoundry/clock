@@ -3,7 +3,7 @@ module code.cloudfoundry.org/clock
 go 1.20
 
 require (
-	github.com/onsi/ginkgo/v2 v2.13.1
+	github.com/onsi/ginkgo/v2 v2.13.2
 	github.com/onsi/gomega v1.30.0
 	github.com/tedsuo/ifrit v0.0.0-20230330192023-5cba443a66c4
 )
