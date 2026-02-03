@@ -1,147 +1,182 @@
 package fakeclock_test
 
 import (
-	"os"
+	"context"
+	"sync"
+	"testing"
 	"time"
 
-	"code.cloudfoundry.org/clock"
 	"code.cloudfoundry.org/clock/fakeclock"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-	"github.com/tedsuo/ifrit"
-	ginkgomon "github.com/tedsuo/ifrit/ginkgomon_v2"
 )
 
-var _ = Describe("FakeTimer", func() {
+func TestFakeTimerFires(t *testing.T) {
+	t.Parallel()
+
 	const delta = 10 * time.Millisecond
 
-	var (
-		fakeClock   *fakeclock.FakeClock
-		initialTime time.Time
-	)
+	fc := fakeclock.NewFakeClock(initialTime)
 
-	BeforeEach(func() {
-		initialTime = time.Date(2014, 1, 1, 3, 0, 30, 0, time.UTC)
-		fakeClock = fakeclock.NewFakeClock(initialTime)
-	})
+	timer := fc.NewTimer(10 * time.Second)
+	timeChan := timer.C()
+	requireNoReceive(t, timeChan, delta)
 
-	It("proivdes a channel that receives after the given interval has elapsed", func() {
-		timer := fakeClock.NewTimer(10 * time.Second)
-		timeChan := timer.C()
-		Consistently(timeChan, delta).ShouldNot(Receive())
+	fc.Increment(5 * time.Second)
+	requireNoReceive(t, timeChan, delta)
 
-		fakeClock.Increment(5 * time.Second)
-		Consistently(timeChan, delta).ShouldNot(Receive())
+	fc.Increment(4 * time.Second)
+	requireNoReceive(t, timeChan, delta)
 
-		fakeClock.Increment(4 * time.Second)
-		Consistently(timeChan, delta).ShouldNot(Receive())
+	fc.Increment(1 * time.Second)
+	requireReceiveEqual(t, timeChan, initialTime.Add(10*time.Second), 1*time.Second)
 
-		fakeClock.Increment(1 * time.Second)
-		Eventually(timeChan).Should(Receive(Equal(initialTime.Add(10 * time.Second))))
+	fc.Increment(10 * time.Second)
+	requireNoReceive(t, timeChan, delta)
+}
 
-		fakeClock.Increment(10 * time.Second)
-		Consistently(timeChan, delta).ShouldNot(Receive())
-	})
+func TestFakeTimerStopIsIdempotent(t *testing.T) {
+	t.Parallel()
 
-	Describe("Stop", func() {
-		It("is idempotent", func() {
-			timer := fakeClock.NewTimer(time.Second)
-			timer.Stop()
-			timer.Stop()
-			fakeClock.Increment(time.Second)
-			Consistently(timer.C()).ShouldNot(Receive())
-		})
-	})
+	const delta = 10 * time.Millisecond
 
-	Describe("WaitForWatcherAndIncrement", func() {
-		const (
-			duration = 10 * time.Second
-		)
+	fc := fakeclock.NewFakeClock(initialTime)
 
-		var (
-			process  ifrit.Process
-			runner   ifrit.Runner
-			received chan time.Time
-		)
+	timer := fc.NewTimer(time.Second)
+	timer.Stop()
+	timer.Stop()
 
-		BeforeEach(func() {
-			received = make(chan time.Time, 100)
-		})
+	fc.Increment(time.Second)
+	requireNoReceive(t, timer.C(), delta)
+}
 
-		AfterEach(func() {
-			ginkgomon.Interrupt(process)
-		})
+func TestWaitForWatcherAndIncrementTimersAddedAsync(t *testing.T) {
+	t.Parallel()
 
-		JustBeforeEach(func() {
-			process = ginkgomon.Invoke(runner)
-		})
+	const duration = 10 * time.Second
 
-		Context("when timers are added asynchronously", func() {
-			BeforeEach(func() {
-				runner = ifrit.RunFunc(func(signals <-chan os.Signal, ready chan<- struct{}) error {
-					close(ready)
+	fc := fakeclock.NewFakeClock(initialTime)
+	received := make(chan time.Time, 100)
 
-					for {
-						timer := fakeClock.NewTimer(duration)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-						select {
-						case ticked := <-timer.C():
-							received <- ticked
-						case <-signals:
-							return nil
-						}
-					}
-				})
-			})
+	var wg sync.WaitGroup
+	ready := make(chan struct{})
 
-			It("consistently fires the new timers", func() {
-				for i := 0; i < 100; i++ {
-					fakeClock.WaitForWatcherAndIncrement(duration)
-					Expect((<-received).Sub(initialTime)).To(Equal(duration * time.Duration(i+1)))
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		close(ready)
+
+		for {
+			timer := fc.NewTimer(duration)
+
+			select {
+			case ticked := <-timer.C():
+				received <- ticked
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	<-ready
+
+	for i := 0; i < 100; i++ {
+		fc.WaitForWatcherAndIncrement(duration)
+
+		ticked := <-received
+		if got, want := ticked.Sub(initialTime), duration*time.Duration(i+1); got != want {
+			t.Fatalf("ticked offset=%s; want %s", got, want)
+		}
+	}
+
+	cancel()
+	waitGroupWithin(t, &wg, 5*time.Second)
+}
+
+func TestWaitForWatcherAndIncrementTimerResetAsync(t *testing.T) {
+	t.Parallel()
+
+	const duration = 10 * time.Second
+
+	fc := fakeclock.NewFakeClock(initialTime)
+
+	received := make(chan time.Time, 100)
+	timer := fc.NewTimer(duration)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var wg sync.WaitGroup
+	ready := make(chan struct{})
+
+	// Goroutine that receives timer ticks and resets the timer asynchronously.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		close(ready)
+
+		for {
+			select {
+			case ticked := <-timer.C():
+				received <- ticked
+				timer.Reset(duration)
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	<-ready
+
+	incrementClock := make(chan struct{})
+
+	// Goroutine that increments the clock when asked.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case _, ok := <-incrementClock:
+				if !ok {
+					return
 				}
-			})
-		})
+				fc.WaitForWatcherAndIncrement(duration)
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 
-		Context("when a timer is reset asynchronously", func() {
-			var (
-				timer clock.Timer
-			)
+	for i := 0; i < 100; i++ {
+		requireSendWithin(t, incrementClock, struct{}{}, 1*time.Second)
 
-			BeforeEach(func() {
-				timer = fakeClock.NewTimer(duration)
+		var timestamp time.Time
+		requireReceiveInto(t, received, &timestamp, 5*time.Second)
 
-				runner = ifrit.RunFunc(func(signals <-chan os.Signal, ready chan<- struct{}) error {
-					close(ready)
+		// We don't assert on the timestamp value here; this test is checking that
+		// timers that reset asynchronously continue to fire without deadlocking.
+		_ = timestamp
+	}
 
-					for {
-						select {
-						case ticked := <-timer.C():
-							received <- ticked
-							timer.Reset(duration)
-						case <-signals:
-							return nil
-						}
-					}
-				})
-			})
+	close(incrementClock)
+	cancel()
+	waitGroupWithin(t, &wg, 5*time.Second)
+}
 
-			It("consistently fires timers that reset asynchronously", func() {
-				incrementClock := make(chan struct{})
+func waitGroupWithin(t *testing.T, wg *sync.WaitGroup, d time.Duration) {
+	t.Helper()
 
-				go func() {
-					for {
-						<-incrementClock
-						fakeClock.WaitForWatcherAndIncrement(duration)
-					}
-				}()
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
 
-				for i := 0; i < 100; i++ {
-					Eventually(incrementClock).Should(BeSent(struct{}{}))
-					var timestamp time.Time
-					Eventually(received, 5*time.Second).Should(Receive(&timestamp))
-				}
-			})
-		})
-
-	})
-})
+	select {
+	case <-done:
+		return
+	case <-time.After(d):
+		t.Fatalf("timed out waiting for goroutines to exit")
+	}
+}

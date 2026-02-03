@@ -2,95 +2,120 @@ package fakeclock_test
 
 import (
 	"sync/atomic"
+	"testing"
 	"time"
 
 	"code.cloudfoundry.org/clock/fakeclock"
-
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("FakeTicker", func() {
+func TestFakeTickerTicks(t *testing.T) {
+	t.Parallel()
+
 	const delta = 10 * time.Millisecond
 
-	var (
-		fakeClock   *fakeclock.FakeClock
-		initialTime time.Time
+	fc := fakeclock.NewFakeClock(initialTime)
+
+	ticker := fc.NewTicker(10 * time.Second)
+	timeChan := ticker.C()
+	requireNoReceive(t, timeChan, delta)
+
+	fc.Increment(5 * time.Second)
+	requireNoReceive(t, timeChan, delta)
+
+	fc.Increment(4 * time.Second)
+	requireNoReceive(t, timeChan, delta)
+
+	fc.Increment(1 * time.Second)
+	requireReceiveEqual(t, timeChan, initialTime.Add(10*time.Second), 1*time.Second)
+
+	fc.Increment(10 * time.Second)
+	requireReceiveEqual(t, timeChan, initialTime.Add(20*time.Second), 1*time.Second)
+
+	fc.Increment(10 * time.Second)
+	requireReceiveEqual(t, timeChan, initialTime.Add(30*time.Second), 1*time.Second)
+}
+
+func TestFakeTickerMultipleTickers(t *testing.T) {
+	t.Parallel()
+
+	const (
+		period = 1 * time.Second
+		delta  = 10 * time.Millisecond
 	)
 
-	BeforeEach(func() {
-		initialTime = time.Date(2014, 1, 1, 3, 0, 30, 0, time.UTC)
-		fakeClock = fakeclock.NewFakeClock(initialTime)
-	})
+	fc := fakeclock.NewFakeClock(initialTime)
 
-	It("provides a channel that receives the time at each interval", func() {
-		ticker := fakeClock.NewTicker(10 * time.Second)
-		timeChan := ticker.C()
-		Consistently(timeChan, delta).ShouldNot(Receive())
+	ticker1 := fc.NewTicker(period)
+	ticker2 := fc.NewTicker(period)
 
-		fakeClock.Increment(5 * time.Second)
-		Consistently(timeChan, delta).ShouldNot(Receive())
+	// Receiving directly from ticker.C() makes it easy to miss events; use counters instead.
+	var count1 uint32
+	var count2 uint32
 
-		fakeClock.Increment(4 * time.Second)
-		Consistently(timeChan, delta).ShouldNot(Receive())
+	stop := make(chan struct{})
+	defer close(stop)
 
-		fakeClock.Increment(1 * time.Second)
-		Eventually(timeChan).Should(Receive(Equal(initialTime.Add(10 * time.Second))))
-
-		fakeClock.Increment(10 * time.Second)
-		Eventually(timeChan).Should(Receive(Equal(initialTime.Add(20 * time.Second))))
-
-		fakeClock.Increment(10 * time.Second)
-		Eventually(timeChan).Should(Receive(Equal(initialTime.Add(30 * time.Second))))
-	})
-
-	It("when there are multiple tickers", func() {
-		const period = 1 * time.Second
-
-		ticker1 := fakeClock.NewTicker(period)
-		ticker2 := fakeClock.NewTicker(period)
-
-		// Eventually(ticker.C()).Should(Receive) make it hard to detect this error
-		// due to the polling nature of Eventually. We usually end up missing the
-		// second event and it gets dropped on the floor. Use counters instead to
-		// make sure we don't miss the second erroneous event
-		count1 := uint32(0)
-		count2 := uint32(0)
-
-		go func() {
-			for {
-				select {
-				case <-ticker1.C():
-					atomic.AddUint32(&count1, 1)
-				case <-ticker2.C():
-					atomic.AddUint32(&count2, 1)
-				}
+	go func() {
+		for {
+			select {
+			case <-stop:
+				return
+			case <-ticker1.C():
+				atomic.AddUint32(&count1, 1)
+			case <-ticker2.C():
+				atomic.AddUint32(&count2, 1)
 			}
-		}()
+		}
+	}()
 
-		fakeClock.Increment(period)
+	fc.Increment(period)
 
-		Eventually(func() uint32 { return atomic.LoadUint32(&count1) }).Should(BeEquivalentTo(1))
-		Eventually(func() uint32 { return atomic.LoadUint32(&count2) }).Should(BeEquivalentTo(1))
+	eventually(t, 1*time.Second, func() bool { return atomic.LoadUint32(&count1) == 1 })
+	eventually(t, 1*time.Second, func() bool { return atomic.LoadUint32(&count2) == 1 })
 
-		Consistently(func() uint32 { return atomic.LoadUint32(&count1) }).Should(BeEquivalentTo(1))
-		Consistently(func() uint32 { return atomic.LoadUint32(&count2) }).Should(BeEquivalentTo(1))
-	})
+	// And ensure no extra ticks arrive shortly thereafter.
+	deadline := time.Now().Add(5 * delta)
+	for time.Now().Before(deadline) {
+		if atomic.LoadUint32(&count1) != 1 {
+			t.Fatalf("ticker1 count=%d; want 1", atomic.LoadUint32(&count1))
+		}
+		if atomic.LoadUint32(&count2) != 1 {
+			t.Fatalf("ticker2 count=%d; want 1", atomic.LoadUint32(&count2))
+		}
+		time.Sleep(1 * time.Millisecond)
+	}
+}
 
-	It("should not fire until a period has passed", func() {
-		const period = 1 * time.Second
+func TestFakeTickerDoesNotFireEarly(t *testing.T) {
+	t.Parallel()
 
-		ticker := fakeClock.NewTicker(period)
-		Consistently(ticker.C()).ShouldNot(Receive())
+	const (
+		period = 1 * time.Second
+		delta  = 10 * time.Millisecond
+	)
 
-		fakeClock.Increment(period)
-		Eventually(ticker.C()).Should(Receive(Equal(initialTime.Add(period))))
+	fc := fakeclock.NewFakeClock(initialTime)
 
-		fakeClock.Increment(0)
-		Consistently(ticker.C()).ShouldNot(Receive())
-	})
+	ticker := fc.NewTicker(period)
+	requireNoReceive(t, ticker.C(), delta)
 
-	It("panics given an invalid duration", func() {
-		Expect(func() { fakeClock.NewTicker(0) }).Should(Panic())
-	})
-})
+	fc.Increment(period)
+	requireReceiveEqual(t, ticker.C(), initialTime.Add(period), 1*time.Second)
+
+	fc.Increment(0)
+	requireNoReceive(t, ticker.C(), delta)
+}
+
+func TestFakeTickerPanicsOnInvalidDuration(t *testing.T) {
+	t.Parallel()
+
+	fc := fakeclock.NewFakeClock(initialTime)
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatalf("expected panic")
+		}
+	}()
+
+	_ = fc.NewTicker(0)
+}
