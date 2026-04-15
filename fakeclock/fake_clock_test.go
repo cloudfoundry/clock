@@ -1,92 +1,103 @@
 package fakeclock_test
 
 import (
+	"testing"
 	"time"
 
 	"code.cloudfoundry.org/clock/fakeclock"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("FakeClock", func() {
-	const delta time.Duration = 10 * time.Millisecond
+var (
+	initialTime = time.Date(2014, 1, 1, 3, 0, 30, 0, time.UTC)
+)
 
-	var (
-		fakeClock   *fakeclock.FakeClock
-		initialTime time.Time
-	)
+func TestFakeClockNow(t *testing.T) {
+	t.Parallel()
 
-	BeforeEach(func() {
-		initialTime = time.Date(2014, 1, 1, 3, 0, 30, 0, time.UTC)
-		fakeClock = fakeclock.NewFakeClock(initialTime)
+	fc := fakeclock.NewFakeClock(initialTime)
+
+	go fc.Increment(time.Minute)
+
+	eventually(t, 1*time.Second, func() bool {
+		return fc.Now().Equal(initialTime.Add(time.Minute))
+	})
+}
+
+func TestFakeClockSleep(t *testing.T) {
+	t.Parallel()
+
+	const delta = 10 * time.Millisecond
+
+	fc := fakeclock.NewFakeClock(initialTime)
+
+	doneSleeping := make(chan struct{})
+	go func() {
+		fc.Sleep(10 * time.Second)
+		close(doneSleeping)
+	}()
+
+	requireNotClosed(t, doneSleeping, delta)
+
+	fc.Increment(5 * time.Second)
+	requireNotClosed(t, doneSleeping, delta)
+
+	fc.Increment(4 * time.Second)
+	requireNotClosed(t, doneSleeping, delta)
+
+	fc.Increment(1 * time.Second)
+	requireClosed(t, doneSleeping, 1*time.Second)
+}
+
+func TestFakeClockAfter(t *testing.T) {
+	t.Parallel()
+
+	const delta = 10 * time.Millisecond
+
+	fc := fakeclock.NewFakeClock(initialTime)
+
+	timeChan := fc.After(10 * time.Second)
+	requireNoReceive(t, timeChan, delta)
+
+	fc.Increment(5 * time.Second)
+	requireNoReceive(t, timeChan, delta)
+
+	fc.Increment(4 * time.Second)
+	requireNoReceive(t, timeChan, delta)
+
+	fc.Increment(1 * time.Second)
+	requireReceiveEqual(t, timeChan, initialTime.Add(10*time.Second), 1*time.Second)
+
+	fc.Increment(10 * time.Second)
+	requireNoReceive(t, timeChan, delta)
+}
+
+func TestFakeClockWatcherCount(t *testing.T) {
+	t.Parallel()
+
+	t.Run("increments when timers are created", func(t *testing.T) {
+		fc := fakeclock.NewFakeClock(initialTime)
+		fc.NewTimer(time.Second)
+		if got, want := fc.WatcherCount(), 1; got != want {
+			t.Fatalf("WatcherCount=%d; want %d", got, want)
+		}
+
+		fc.NewTimer(2 * time.Second)
+		if got, want := fc.WatcherCount(), 2; got != want {
+			t.Fatalf("WatcherCount=%d; want %d", got, want)
+		}
 	})
 
-	Describe("Now", func() {
-		It("returns the current time, w/o race conditions", func() {
-			go fakeClock.Increment(time.Minute)
-			Eventually(fakeClock.Now).Should(Equal(initialTime.Add(time.Minute)))
-		})
+	t.Run("decrements when a timer fires", func(t *testing.T) {
+		fc := fakeclock.NewFakeClock(initialTime)
+
+		fc.NewTimer(time.Second)
+		if got, want := fc.WatcherCount(), 1; got != want {
+			t.Fatalf("WatcherCount=%d; want %d", got, want)
+		}
+
+		fc.Increment(time.Second)
+		if got, want := fc.WatcherCount(), 0; got != want {
+			t.Fatalf("WatcherCount=%d; want %d", got, want)
+		}
 	})
-
-	Describe("Sleep", func() {
-		It("blocks until the given interval elapses", func() {
-			doneSleeping := make(chan struct{})
-			go func() {
-				fakeClock.Sleep(10 * time.Second)
-				close(doneSleeping)
-			}()
-
-			Consistently(doneSleeping, delta).ShouldNot(BeClosed())
-
-			fakeClock.Increment(5 * time.Second)
-			Consistently(doneSleeping, delta).ShouldNot(BeClosed())
-
-			fakeClock.Increment(4 * time.Second)
-			Consistently(doneSleeping, delta).ShouldNot(BeClosed())
-
-			fakeClock.Increment(1 * time.Second)
-			Eventually(doneSleeping).Should(BeClosed())
-		})
-	})
-
-	Describe("After", func() {
-		It("waits and then sends the current time on the returned channel", func() {
-			timeChan := fakeClock.After(10 * time.Second)
-			Consistently(timeChan, delta).ShouldNot(Receive())
-
-			fakeClock.Increment(5 * time.Second)
-			Consistently(timeChan, delta).ShouldNot(Receive())
-
-			fakeClock.Increment(4 * time.Second)
-			Consistently(timeChan, delta).ShouldNot(Receive())
-
-			fakeClock.Increment(1 * time.Second)
-			Eventually(timeChan).Should(Receive(Equal(initialTime.Add(10 * time.Second))))
-
-			fakeClock.Increment(10 * time.Second)
-			Consistently(timeChan, delta).ShouldNot(Receive())
-		})
-	})
-
-	Describe("WatcherCount", func() {
-		Context("when a timer is created", func() {
-			It("increments the watcher count", func() {
-				fakeClock.NewTimer(time.Second)
-				Expect(fakeClock.WatcherCount()).To(Equal(1))
-
-				fakeClock.NewTimer(2 * time.Second)
-				Expect(fakeClock.WatcherCount()).To(Equal(2))
-			})
-		})
-
-		Context("when a timer fires", func() {
-			It("increments the watcher count", func() {
-				fakeClock.NewTimer(time.Second)
-				Expect(fakeClock.WatcherCount()).To(Equal(1))
-
-				fakeClock.Increment(time.Second)
-				Expect(fakeClock.WatcherCount()).To(Equal(0))
-			})
-		})
-	})
-})
+}
